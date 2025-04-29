@@ -1,0 +1,95 @@
+import tkinter as tk 
+from PIL import ImageGrab
+import os
+
+
+class ScreenCaptureApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("Cattura Schermo Semplice")
+
+        self.capture_button = tk.Button(master, text="Cattura", command=self.start_capture)
+        self.capture_button.pack(pady=20)
+
+        self.capture_window = None
+        self.canvas = None  # Inizializziamo canvas come None
+        self.start_x = None
+        self.start_y = None
+        self.end_x = None
+        self.end_y = None
+        self.selection_rect = None
+
+    def start_capture(self):
+        self.master.withdraw()  # Nasconde la finestra principale
+
+        # Crea una finestra trasparente a schermo intero per la selezione
+        self.capture_window = tk.Toplevel(self.master)
+        self.capture_window.attributes("-fullscreen", True)
+        self.capture_window.attributes("-alpha", 0.2)  # Valore più visibile
+
+        self.canvas = tk.Canvas(self.capture_window, cursor="crosshair") # Rimosso bg="black"
+        self.canvas.pack(fill="both", expand=True)
+
+        self.canvas.bind("<ButtonPress-1>", self.on_press)
+        self.canvas.bind("<B1-Motion>", self.on_drag)
+        self.canvas.bind("<ButtonRelease-1>", self.on_release)
+
+        self.canvas.update() # Forza l'aggiornamento per ottenere le dimensioni subito
+        print(f"Canvas width: {self.canvas.winfo_width()}, height: {self.canvas.winfo_height()}")
+
+    def on_press(self, event):
+        self.start_x = self.canvas.canvasx(event.x)
+        self.start_y = self.canvas.canvasy(event.y)
+        if self.selection_rect:
+            self.canvas.delete(self.selection_rect)
+            self.selection_rect = None
+
+    def on_drag(self, event):
+        cur_x = self.canvas.canvasx(event.x)
+        cur_y = self.canvas.canvasy(event.y)
+
+        x1, y1 = (min(self.start_x, cur_x), min(self.start_y, cur_y))
+        x2, y2 = (max(self.start_x, cur_x), max(self.start_y, cur_y))
+
+        print(f"Dragging to: ({cur_x}, {cur_y}) - Rectangle: ({x1}, {y1}, {x2}, {y2})")
+
+        if not self.selection_rect:
+            self.selection_rect = self.canvas.create_rectangle(x1, y1, x2, y2, outline="red", width=5) # Cambia colore e spessore
+        else:
+            self.canvas.coords(self.selection_rect, x1, y1, x2, y2)
+
+        # Test basilare di disegno (commenta/rimuovi dopo il test)
+        # x = self.canvas.canvasx(event.x)
+        # y = self.canvas.canvasy(event.y)
+        # self.canvas.create_rectangle(x - 5, y - 5, x + 5, y + 5, fill="blue")
+
+    def on_release(self, event):
+        self.end_x = self.canvas.canvasx(event.x)
+        self.end_y = self.canvas.canvasy(event.y)
+
+        x1 = int(min(self.start_x, self.end_x))
+        y1 = int(min(self.start_y, self.end_y))
+        x2 = int(max(self.start_x, self.end_x))
+        y2 = int(max(self.start_y, self.end_y))
+
+        bbox = (x1, y1, x2, y2)
+        self.capture_and_save(bbox)
+
+        self.capture_window.destroy() # Chiude la finestra di selezione dopo la cattura
+
+    def capture_and_save(self, bbox):
+        try:
+            screenshot = ImageGrab.grab(bbox=bbox)
+            user_home = os.path.expanduser("~")
+            FilePath = os.path.join(user_home, "temp.jpg")
+            screenshot.save(FilePath)
+            self.master.deiconify() # Rende nuovamente visibile la finestra principale
+            print(f"Cattura salvata in: {FilePath}") # Opzionale: feedback nella console
+        except Exception as e:
+            print(f"Errore durante la cattura o il salvataggio dello schermo: {e}")
+            self.master.deiconify() # Ritorna visibile la finestra principale in caso di errore
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ScreenCaptureApp(root)
+    root.mainloop()
