@@ -18,17 +18,45 @@
 
 
 import tkinter as tk
-from PIL import ImageGrab
+from PIL import ImageGrab, ImageTk
 import os
-
+import time
+import pyperclip
+from io import BytesIO  # Importa BytesIO
 
 class ScreenCaptureApp:
     def __init__(self, master):
         self.master = master
         master.title("Cattura Schermo Semplice")
+        master.geometry("500x500")  # Imposta le dimensioni iniziali della finestra
 
-        self.capture_button = tk.Button(master, text="Cattura", command=self.start_capture)
-        self.capture_button.pack(pady=20)
+        # Toolbar Frame
+        self.toolbar = tk.Frame(master)
+        self.toolbar.pack(side=tk.TOP, fill=tk.X)
+
+        # Pulsante Cattura
+        self.capture_button = tk.Button(self.toolbar, text="Cattura", command=self.start_capture)
+        self.capture_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # Pulsante Salva
+        self.save_button = tk.Button(self.toolbar, text="Salva", command=self.save_image)
+        self.save_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.save_button.config(state=tk.DISABLED) # Inizialmente disabilitato
+
+        # Pulsante Copia Immagine
+        self.copy_button = tk.Button(self.toolbar, text="Copia Immagine", command=self.copy_image_to_clipboard)
+        self.copy_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.copy_button.config(state=tk.DISABLED) # Inizialmente disabilitato
+
+        # Frame per l'anteprima dell'immagine
+        self.preview_frame = tk.Frame(master)
+        self.preview_frame.pack(fill="both", expand=True, pady=10, padx=10)
+        self.preview_frame.grid_rowconfigure(0, weight=1)
+        self.preview_frame.grid_columnconfigure(0, weight=1)
+
+        # Label per visualizzare l'anteprima dell'immagine
+        self.preview_label = tk.Label(self.preview_frame)
+        self.preview_label.grid(row=0, column=0, sticky="nsew")
 
         self.capture_window = None
         self.canvas = None
@@ -38,12 +66,20 @@ class ScreenCaptureApp:
         self.end_y = None
         self.selection_rect = None
         self.full_screenshot = None  # Immagine completa dello schermo originale
+        self.cropped_image = None
+        self.preview_image = None # Oggetto ImageTk per la visualizzazione
+
+        self.master.bind("<Configure>", self.on_resize)
 
     def start_capture(self):
+        self.master.withdraw()  # Nasconde la finestra principale
+        self.master.update_idletasks()  # Forza aggiornamento per nasconderla davvero
+
+        # Aspetta brevemente per assicurarsi che la finestra sia sparita
+        time.sleep(0.1)  # valore piccolo ma efficace
+
         # Cattura l'intero schermo prima di aprire la finestra opaca
         self.full_screenshot = ImageGrab.grab()
-
-        self.master.withdraw()  # Nasconde la finestra principale
 
         # Crea una finestra trasparente a schermo intero per la selezione
         self.capture_window = tk.Toplevel(self.master)
@@ -89,24 +125,75 @@ class ScreenCaptureApp:
         y2 = int(max(self.start_y, self.end_y))
 
         bbox = (x1, y1, x2, y2)
-        self.capture_and_save(bbox)
+        self.crop_and_preview(bbox)
 
         self.capture_window.destroy()  # Chiude la finestra di selezione
+        self.master.deiconify()  # Rende visibile la finestra principale
+        self.enable_save_copy_buttons()
 
-    def capture_and_save(self, bbox):
+    def crop_and_preview(self, bbox):
         try:
             # Ritaglia l'immagine originale non opaca
-            cropped = self.full_screenshot.crop(bbox)
-            user_home = os.path.expanduser("~")
-            FilePath = os.path.join(user_home, "temp.jpg")
-            cropped.save(FilePath)
-
-            self.master.deiconify()  # Rende visibile la finestra principale
-            print(f"Cattura salvata in: {FilePath}")
+            self.cropped_image = self.full_screenshot.crop(bbox)
+            print("Immagine ritagliata.")
+            self.update_preview()
         except Exception as e:
-            print(f"Errore durante la cattura o il salvataggio dello schermo: {e}")
-            self.master.deiconify()
+            print(f"Errore durante il ritaglio dell'immagine: {e}")
+            self.cropped_image = None
 
+    def update_preview(self):
+        if self.cropped_image:
+            width, height = self.cropped_image.size
+            frame_width = self.preview_frame.winfo_width()
+            frame_height = self.preview_frame.winfo_height()
+
+            if frame_width > 0 and frame_height > 0:
+                ratio = min(frame_width / width, frame_height / height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                resized_image = self.cropped_image.resize((new_width, new_height))
+                self.preview_image = ImageTk.PhotoImage(resized_image)
+                self.preview_label.config(image=self.preview_image)
+            else:
+                # Il frame potrebbe non avere ancora dimensioni definite, riprova dopo un po'
+                self.master.after(100, self.update_preview)
+        else:
+            self.preview_label.config(image="")
+            self.preview_image = None
+
+    def on_resize(self, event):
+        # Aggiorna l'anteprima solo se l'immagine è già stata catturata
+        if self.cropped_image:
+            self.update_preview()
+
+    def save_image(self):
+        if self.cropped_image:
+            try:
+                user_home = os.path.expanduser("~")
+                file_path = os.path.join(user_home, "screenshot.png")
+                self.cropped_image.save(file_path)
+                print(f"Cattura salvata in: {file_path}")
+            except Exception as e:
+                print(f"Errore durante il salvataggio dell'immagine: {e}")
+        else:
+            print("Nessuna immagine catturata da salvare.")
+
+    def copy_image_to_clipboard(self):
+        if self.cropped_image:
+            try:
+                output = BytesIO()
+                self.cropped_image.convert("RGB").save(output, "BMP")
+                data = output.getvalue()[14:]  # Remove BMP header
+                pyperclip.copy(data)
+                print("Immagine copiata negli appunti come BMP.")
+            except Exception as e:
+                print(f"Errore durante la copia dell'immagine negli appunti: {e}")
+        else:
+            print("Nessuna immagine catturata da copiare.")
+
+    def enable_save_copy_buttons(self):
+        self.save_button.config(state=tk.NORMAL)
+        self.copy_button.config(state=tk.NORMAL)
 
 if __name__ == "__main__":
     root = tk.Tk()
