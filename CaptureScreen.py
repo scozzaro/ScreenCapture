@@ -16,7 +16,6 @@
 # Il codice è fornito "così com'è", senza garanzie di alcun tipo.
 # =============================================================================
 
-
 import tkinter as tk
 from PIL import ImageGrab, ImageTk
 import os
@@ -78,6 +77,7 @@ class ScreenCaptureApp:
         self.pen_size_frame = tk.Frame(self.toolbar)
         self.pen_size_frame.pack(side=tk.LEFT, padx=5)
 
+
         # Pulsanti toggle per dimensione penna
         self.pen_size_3_button = self.create_pen_size_button(3)
         self.pen_size_3_button.pack(side=tk.LEFT)
@@ -87,6 +87,7 @@ class ScreenCaptureApp:
 
         self.pen_size_9_button = self.create_pen_size_button(9)
         self.pen_size_9_button.pack(side=tk.LEFT)
+
 
 
 
@@ -115,18 +116,23 @@ class ScreenCaptureApp:
         self.master.bind("<Configure>", self.on_resize)
 
     def create_pen_size_button(self, size):
-        """Crea un pulsante toggle per la dimensione della penna."""
-        button = tk.Button(self.pen_size_frame, relief=tk.RAISED, text=f"Penna {size}", width=10)
-        button.config(command=lambda: self.set_pen_size(size, button))
-        return button
+        """Crea un pulsante per la dimensione della penna con un cerchio cliccabile."""
+        canvas = tk.Canvas(self.pen_size_frame, width=30, height=30, highlightthickness=1, highlightbackground="gray")
+        x0, y0 = 15 - size // 2, 15 - size // 2
+        x1, y1 = 15 + size // 2, 15 + size // 2
+        canvas.create_oval(x0, y0, x1, y1, fill=self.pen_color, outline="black")
+
+        canvas.bind("<Button-1>", lambda e: self.set_pen_size(size, canvas))
+        return canvas
 
 
-    def set_pen_size(self, size, clicked_button):
+
+    def set_pen_size(self, size, clicked_canvas):
         """Imposta la dimensione della penna e aggiorna l'aspetto dei pulsanti."""
         self.pen_width = size
-        for button in [self.pen_size_3_button, self.pen_size_6_button, self.pen_size_9_button]:
-            button.config(relief=tk.RAISED)
-        clicked_button.config(relief=tk.SUNKEN)
+        for canvas in [self.pen_size_3_button, self.pen_size_6_button, self.pen_size_9_button]:
+            canvas.config(highlightbackground="gray")
+        clicked_canvas.config(highlightbackground="blue")
 
 
     def open_color_palette(self):
