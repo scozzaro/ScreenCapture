@@ -23,12 +23,16 @@ import os
 import time
 import pyperclip
 from io import BytesIO  # Importa BytesIO
+import win32clipboard
+from PIL import Image
+
+
 
 class ScreenCaptureApp:
     def __init__(self, master):
         self.master = master
         master.title("Cattura Schermo Semplice")
-        master.geometry("500x500")  # Imposta le dimensioni iniziali della finestra
+        master.geometry("600x300")  # Imposta le dimensioni iniziali della finestra
 
         # Toolbar Frame
         self.toolbar = tk.Frame(master)
@@ -48,6 +52,44 @@ class ScreenCaptureApp:
         self.copy_button.pack(side=tk.LEFT, padx=5, pady=5)
         self.copy_button.config(state=tk.DISABLED) # Inizialmente disabilitato
 
+        # Pulsante Penna
+        self.pen_button = tk.Button(self.toolbar, text="Penna", command=self.toggle_pen_mode)
+        self.pen_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.pen_mode = False  # Modalità penna disabilitata di default
+        self.last_draw = None  # Ultima posizione del disegno
+
+        # Colore penna
+        self.pen_color = "white"
+        
+
+        # Pulsante Seleziona Colore
+        self.color_button = tk.Button(self.toolbar, text="Seleziona Colore", command=self.open_color_palette)
+        self.color_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # Label per mostrare il colore corrente della penna
+        self.pen_color_label = tk.Label(self.toolbar, text=" ", bg=self.pen_color, width=3, height=1, relief=tk.SUNKEN, bd=2)
+        self.pen_color_label.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # Dimensione penna
+        self.pen_width = 3  # valore iniziale
+ 
+
+        # Frame per selezione dimensione penna
+        self.pen_size_frame = tk.Frame(self.toolbar)
+        self.pen_size_frame.pack(side=tk.LEFT, padx=5)
+
+        # Pulsanti toggle per dimensione penna
+        self.pen_size_3_button = self.create_pen_size_button(3)
+        self.pen_size_3_button.pack(side=tk.LEFT)
+
+        self.pen_size_6_button = self.create_pen_size_button(6)
+        self.pen_size_6_button.pack(side=tk.LEFT)
+
+        self.pen_size_9_button = self.create_pen_size_button(9)
+        self.pen_size_9_button.pack(side=tk.LEFT)
+
+
+
         # Frame per l'anteprima dell'immagine
         self.preview_frame = tk.Frame(master)
         self.preview_frame.pack(fill="both", expand=True, pady=10, padx=10)
@@ -56,7 +98,8 @@ class ScreenCaptureApp:
 
         # Label per visualizzare l'anteprima dell'immagine
         self.preview_label = tk.Label(self.preview_frame)
-        self.preview_label.grid(row=0, column=0, sticky="nsew")
+        self.preview_label.grid(row=0, column=0, sticky="nw")
+
 
         self.capture_window = None
         self.canvas = None
@@ -71,12 +114,98 @@ class ScreenCaptureApp:
 
         self.master.bind("<Configure>", self.on_resize)
 
+    def create_pen_size_button(self, size):
+        """Crea un pulsante toggle per la dimensione della penna."""
+        button = tk.Button(self.pen_size_frame, relief=tk.RAISED, text=f"Penna {size}", width=10)
+        button.config(command=lambda: self.set_pen_size(size, button))
+        return button
+
+
+    def set_pen_size(self, size, clicked_button):
+        """Imposta la dimensione della penna e aggiorna l'aspetto dei pulsanti."""
+        self.pen_width = size
+        for button in [self.pen_size_3_button, self.pen_size_6_button, self.pen_size_9_button]:
+            button.config(relief=tk.RAISED)
+        clicked_button.config(relief=tk.SUNKEN)
+
+
+    def open_color_palette(self):
+        colors = [
+            "#000000", "#444444", "#888888", "#CCCCCC", "#FFFFFF",
+            "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF",
+            "#800000", "#008000", "#000080", "#808000", "#800080", "#008080"
+        ]
+
+        palette = tk.Toplevel(self.master)
+        palette.title("Scegli un colore")
+        palette.geometry("180x120")
+
+        def select(c):
+            self.pen_color = c
+            self.pen_color_label.config(bg=c)  # <-- aggiorna colore mostrato nella label
+            palette.destroy()
+
+        for i, color in enumerate(colors):
+            btn = tk.Button(palette, bg=color, width=3, height=1, command=lambda c=color: select(c))
+            btn.grid(row=i // 6, column=i % 6, padx=2, pady=2)
+
+
+    def toggle_pen_mode(self):
+        if not self.preview_image:
+            print("Nessuna immagine da disegnare.")
+            return
+
+        self.pen_mode = not self.pen_mode
+        if self.pen_mode:
+            self.pen_button.config(relief=tk.SUNKEN, text="Penna (ON)")
+            self.enable_drawing()
+        else:
+            self.pen_button.config(relief=tk.RAISED, text="Penna")
+            self.disable_drawing()
+
+    def enable_drawing(self):
+        self.preview_label.bind("<B1-Motion>", self.draw_on_image)
+        self.preview_label.bind("<ButtonRelease-1>", self.reset_draw)
+
+    def disable_drawing(self):
+        self.preview_label.unbind("<B1-Motion>")
+        self.preview_label.unbind("<ButtonRelease-1>")
+
+    def draw_on_image(self, event):
+        if not self.cropped_image:
+            return
+
+        # Calcola le coordinate relative all'immagine originale
+        label_width = self.preview_label.winfo_width()
+        label_height = self.preview_label.winfo_height()
+        image_width, image_height = self.cropped_image.size
+        ratio = min(label_width / image_width, label_height / image_height)
+
+        x = int(event.x / ratio)
+        y = int(event.y / ratio)
+
+        if self.last_draw:
+            x0, y0 = self.last_draw
+            draw = self.cropped_image.copy()
+            from PIL import ImageDraw
+            draw_tool = ImageDraw.Draw(self.cropped_image)
+            draw_tool.line([x0, y0, x, y], fill=self.pen_color, width=self.pen_width)
+
+
+            self.last_draw = (x, y)
+            self.update_preview()
+        else:
+            self.last_draw = (x, y)
+
+    def reset_draw(self, event):
+        self.last_draw = None
+
     def start_capture(self):
         self.master.withdraw()  # Nasconde la finestra principale
         self.master.update_idletasks()  # Forza aggiornamento per nasconderla davvero
 
         # Aspetta brevemente per assicurarsi che la finestra sia sparita
-        time.sleep(0.1)  # valore piccolo ma efficace
+        time.sleep(0.3)  # valore piccolo ma efficace
 
         # Cattura l'intero schermo prima di aprire la finestra opaca
         self.full_screenshot = ImageGrab.grab()
@@ -179,6 +308,26 @@ class ScreenCaptureApp:
             print("Nessuna immagine catturata da salvare.")
 
     def copy_image_to_clipboard(self):
+        if self.cropped_image:
+            try:
+                output = BytesIO()
+                # Converti in RGB e salva in formato BMP (senza header BMP per clipboard)
+                self.cropped_image.convert("RGB").save(output, "BMP")
+                data = output.getvalue()[14:]  # Rimuove header BMP (i primi 14 byte)
+
+                output.close()
+
+                win32clipboard.OpenClipboard()
+                win32clipboard.EmptyClipboard()
+                win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+                win32clipboard.CloseClipboard()
+                print("Immagine copiata negli appunti in formato compatibile (DIB/BMP).")
+            except Exception as e:
+                print(f"Errore durante la copia dell'immagine negli appunti: {e}")
+        else:
+            print("Nessuna immagine catturata da copiare.")
+
+    def copy_image_to_clipboardOld(self):
         if self.cropped_image:
             try:
                 output = BytesIO()
