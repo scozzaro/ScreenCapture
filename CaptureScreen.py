@@ -7,13 +7,12 @@
 #
 # Questo file è distribuito secondo i termini della Mozilla Public License, v. 2.0.
 # Puoi ottenere una copia della licenza all'indirizzo: https://mozilla.org/MPL/2.0/
-#
 # In base a questa licenza:
 # - Sei libero di usare, modificare e distribuire questo file, anche in progetti commerciali.
 # - Le modifiche a questo file devono essere rilasciate sotto MPL 2.0.
 # - Devono essere mantenuti i riferimenti all’autore e alla licenza.
 #
-# Il codice è fornito "così com'è", senza garanzie di alcun tipo.
+# Il codice è fornito "così com'è", senza garanzie di alcun tipo di funzionamento o di errori
 # =============================================================================
 
 import tkinter as tk
