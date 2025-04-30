@@ -81,6 +81,7 @@ class ScreenCaptureApp:
         # Pulsanti toggle per dimensione penna
         self.pen_size_3_button = self.create_pen_size_button(3)
         self.pen_size_3_button.pack(side=tk.LEFT)
+ 
 
         self.pen_size_6_button = self.create_pen_size_button(6)
         self.pen_size_6_button.pack(side=tk.LEFT)
@@ -88,6 +89,8 @@ class ScreenCaptureApp:
         self.pen_size_9_button = self.create_pen_size_button(9)
         self.pen_size_9_button.pack(side=tk.LEFT)
 
+        # Seleziona di default la dimensione 3 evidenziando il bottone in blu
+        self.set_pen_size(3, self.pen_size_3_button)
 
 
 
@@ -130,9 +133,19 @@ class ScreenCaptureApp:
     def set_pen_size(self, size, clicked_canvas):
         """Imposta la dimensione della penna e aggiorna l'aspetto dei pulsanti."""
         self.pen_width = size
+        # Reimposta sfondo e bordo dei canvas
         for canvas in [self.pen_size_3_button, self.pen_size_6_button, self.pen_size_9_button]:
-            canvas.config(highlightbackground="gray")
-        clicked_canvas.config(highlightbackground="blue")
+            canvas.config(bg="SystemButtonFace", highlightbackground="gray")  # sfondo predefinito
+        # Evidenzia il canvas selezionato
+        clicked_canvas.config(bg="blue", highlightbackground="blue")
+
+        if size==3:
+            print(3)
+            self.pen_size_3_button.config(relief=tk.SUNKEN)
+        else:
+            print(33)
+            self.pen_size_3_button.config(relief=tk.RAISED)
+      
 
 
     def open_color_palette(self):
