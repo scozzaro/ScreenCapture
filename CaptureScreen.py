@@ -24,6 +24,8 @@ import pyperclip
 from io import BytesIO  # Importa BytesIO
 import win32clipboard
 from PIL import Image
+from tkinter import filedialog
+from tkinter import messagebox
 
 
 
@@ -359,16 +361,20 @@ class ScreenCaptureApp:
 
     def save_image(self):
         if self.cropped_image:
-            try:
-                user_home = os.path.expanduser("~")
-                file_path = os.path.join(user_home, "screenshot.png")
-                self.cropped_image.save(file_path)
-                print(f"Cattura salvata in: {file_path}")
-            except Exception as e:
-                print(f"Errore durante il salvataggio dell'immagine: {e}")
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".png",
+                filetypes=[("PNG files", "*.png"), ("JPEG files", "*.jpg"), ("All Files", "*.*")],
+                title="Salva immagine come..."
+            )
+            if file_path:
+                try:
+                    self.cropped_image.save(file_path)
+                    messagebox.showinfo("Salvataggio riuscito", f"Immagine salvata in:\n{file_path}")
+                except Exception as e:
+                    messagebox.showerror("Errore di salvataggio", f"Errore nel salvataggio del file:\n{str(e)}")
         else:
-            print("Nessuna immagine catturata da salvare.")
-
+            messagebox.showwarning("Nessuna immagine", "Non c'è nessuna immagine da salvare.")
+    
     def copy_image_to_clipboard(self):
         if self.cropped_image:
             try:
