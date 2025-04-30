@@ -31,7 +31,7 @@ class ScreenCaptureApp:
     def __init__(self, master):
         self.master = master
         master.title("Cattura Schermo Semplice")
-        master.geometry("600x300")  # Imposta le dimensioni iniziali della finestra
+        master.geometry("700x300")  # Imposta le dimensioni iniziali della finestra
 
         # Toolbar Frame
         self.toolbar = tk.Frame(master)
@@ -92,7 +92,18 @@ class ScreenCaptureApp:
         # Seleziona di default la dimensione 3 evidenziando il bottone in blu
         self.set_pen_size(3, self.pen_size_3_button)
 
+        self.undo_stack = []
+        self.redo_stack = []
 
+        # Pulsante Undo
+        self.undo_button = tk.Button(self.toolbar, text="Undo", command=self.undo)
+        self.undo_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.undo_button.config(state=tk.DISABLED)
+
+        # Pulsante Redo
+        self.redo_button = tk.Button(self.toolbar, text="Redo", command=self.redo)
+        self.redo_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.redo_button.config(state=tk.DISABLED)
 
         # Frame per l'anteprima dell'immagine
         self.preview_frame = tk.Frame(master)
@@ -116,7 +127,36 @@ class ScreenCaptureApp:
         self.cropped_image = None
         self.preview_image = None # Oggetto ImageTk per la visualizzazione
 
+
+
+
         self.master.bind("<Configure>", self.on_resize)
+
+
+    def push_undo(self):
+        if self.cropped_image:
+            self.undo_stack.append(self.cropped_image.copy())
+            self.undo_button.config(state=tk.NORMAL)
+            self.redo_stack.clear()
+            self.redo_button.config(state=tk.DISABLED)
+
+    def undo(self):
+        if self.undo_stack:
+            self.redo_stack.append(self.cropped_image.copy())
+            self.cropped_image = self.undo_stack.pop()
+            self.update_preview()
+            self.redo_button.config(state=tk.NORMAL)
+            if not self.undo_stack:
+                self.undo_button.config(state=tk.DISABLED)
+
+    def redo(self):
+        if self.redo_stack:
+            self.undo_stack.append(self.cropped_image.copy())
+            self.cropped_image = self.redo_stack.pop()
+            self.update_preview()
+            self.undo_button.config(state=tk.NORMAL)
+            if not self.redo_stack:
+                self.redo_button.config(state=tk.DISABLED)
 
     def create_pen_size_button(self, size):
         """Crea un pulsante per la dimensione della penna con un cerchio cliccabile."""
@@ -202,6 +242,9 @@ class ScreenCaptureApp:
 
         x = int(event.x / ratio)
         y = int(event.y / ratio)
+
+        if not self.last_draw:  # Primo punto del nuovo tratto
+            self.push_undo()
 
         if self.last_draw:
             x0, y0 = self.last_draw
